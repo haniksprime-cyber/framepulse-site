@@ -1,0 +1,41 @@
+name: Публикация FramePulse
+on:
+  push:
+    branches: [main]
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: framepulse-pages
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      - name: Проверить установщик в GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          version=$(python3 -c 'import json; print(json.load(open("release.json"))["version"])')
+          file="FramePulse-$version-Setup-x64.exe"
+          gh release download "v$version" --repo "$GITHUB_REPOSITORY" --pattern "$file" --dir "$RUNNER_TEMP/framepulse-release"
+          python3 prepare_pages.py "$GITHUB_REPOSITORY" "$RUNNER_TEMP/framepulse-release/$file"
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: public-pages
+      - name: Опубликовать
+        id: deploy
+        uses: actions/deploy-pages@v4
